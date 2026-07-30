@@ -273,6 +273,11 @@ function syncKubeMode() {
   $('#cf-kube-pf-row').classList.toggle('hidden', !pfMode && on);
   $('#cf-kube-agent-row').classList.toggle('hidden', !agentMode);
   const endpoints = $('#cf-endpoints');
+  // In agent mode 127.0.0.1 would mean "etcd inside the agent pod", which is
+  // never true. Drop a leftover loopback address so auto-discovery kicks in.
+  if (agentMode && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/i.test(endpoints.value.trim())) {
+    endpoints.value = '';
+  }
   endpoints.disabled = pfMode;
   endpoints.placeholder = pfMode
     ? 'not used — the port-forward sets this'

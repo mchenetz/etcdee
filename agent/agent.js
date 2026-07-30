@@ -68,3 +68,12 @@ server.on('connect', (req, clientSocket, head) => {
 });
 
 server.listen(PORT, () => console.log(`etcdee-agent listening on :${PORT}, allowed ports: ${ALLOWED_PORTS.join(',')}`));
+
+// Node runs as PID 1 here, and PID 1 ignores signals it has no handler for.
+// Without this the pod sits in Terminating until the kubelet SIGKILLs it.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 3000).unref();
+  });
+}
