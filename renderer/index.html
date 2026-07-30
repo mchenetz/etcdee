@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>etcdee</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ===================================================== titlebar -->
+    <header class="titlebar">
+      <span class="brand">etcd<span class="dee">ee</span></span>
+      <span id="conn-chip" class="conn-chip" role="status">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="conn-chip-text">not connected</span>
+      </span>
+      <span class="spacer"></span>
+      <button id="btn-disconnect" class="btn small ghost hidden">Disconnect</button>
+      <button id="btn-theme" class="btn small ghost" aria-label="Toggle color theme" title="Toggle theme">◐</button>
+      <button id="btn-help" class="btn small ghost" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+    </header>
+
+    <!-- ===================================================== nav rail -->
+    <nav class="nav" aria-label="Sections">
+      <div class="nav-label">Data</div>
+      <button class="nav-item" data-view="keys" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 3h5l1.5 2H14v8H2z"/></svg>
+        Keys
+      </button>
+      <button class="nav-item" data-view="watch" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M1.5 8C3 4.8 5.3 3.2 8 3.2S13 4.8 14.5 8C13 11.2 10.7 12.8 8 12.8S3 11.2 1.5 8z"/></svg>
+        Watch
+      </button>
+      <button class="nav-item" data-view="leases" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.4 1.6"/></svg>
+        Leases
+      </button>
+      <div class="nav-label">Administer</div>
+      <button class="nav-item" data-view="cluster" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="3.5" r="2"/><circle cx="3.5" cy="12" r="2"/><circle cx="12.5" cy="12" r="2"/><path d="M7 5.2 4.4 10.3M9 5.2l2.6 5.1M5.5 12h5"/></svg>
+        Cluster
+      </button>
+      <button class="nav-item" data-view="maint" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9.6 2.6a3.6 3.6 0 0 0-4.4 4.4L2 10.2V14h3.8l3.2-3.2a3.6 3.6 0 0 0 4.4-4.4L11 8.8 7.2 5z"/></svg>
+        Maintenance
+      </button>
+      <button class="nav-item" data-view="auth" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+        Access
+      </button>
+      <div class="nav-label">Session</div>
+      <button class="nav-item" data-view="connect" aria-current="page">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5.5 8h5M3 6.2 1.8 7.4a2.6 2.6 0 0 0 3.7 3.7L6.7 10M13 9.8l1.2-1.2a2.6 2.6 0 0 0-3.7-3.7L9.3 6"/></svg>
+        Connection
+      </button>
+      <div class="nav-foot">
+        <div><kbd>⌘K</kbd> filter keys</div>
+        <div><kbd>⌘S</kbd> save value</div>
+        <div><kbd>?</kbd> all shortcuts</div>
+      </div>
+    </nav>
+
+    <!-- ===================================================== main -->
+    <main class="main">
+
+      <!-- ============================== connect view -->
+      <section id="view-connect" class="view active" aria-label="Connection">
+        <div class="view-body">
+          <div class="connect-hero">
+            <div class="glyph">etcd<span class="dee">ee</span></div>
+            <p>Connect to an etcd cluster to browse, edit, watch, and administer it.</p>
+          </div>
+          <div class="connect-wrap">
+            <div>
+              <div class="micro" style="margin-bottom:9px">Saved profiles</div>
+              <div id="profile-list" class="profile-list" role="list"></div>
+              <button id="btn-new-profile" class="btn small ghost" style="margin-top:9px">+ New profile</button>
+            </div>
+            <form id="conn-form" class="panel conn-form">
+              <label class="field span2"><span>Profile name</span>
+                <input type="text" id="cf-name" placeholder="local dev" autocomplete="off" />
+              </label>
+              <label class="field span2"><span>Endpoints <span class="req">*</span></span>
+                <input type="text" id="cf-endpoints" class="mono" placeholder="http://127.0.0.1:2379, http://127.0.0.1:22379" autocomplete="off" required />
+              </label>
+              <label class="field"><span>Username</span>
+                <input type="text" id="cf-username" autocomplete="off" />
+              </label>
+              <label class="field"><span>Password</span>
+                <input type="password" id="cf-password" autocomplete="off" />
+              </label>
+              <div class="span2">
+                <label class="check"><input type="checkbox" id="cf-kube" /> Connect through Kubernetes (kubeconfig port-forward)</label>
+              </div>
+              <div class="span2 tls-files hidden" id="cf-kube-fields">
+                <label class="field"><span>Kubeconfig</span>
+                  <span class="file-pick"><input type="text" id="cf-kubeconfig" class="mono" placeholder="~/.kube/config" /><button type="button" class="btn small" data-pick="cf-kubeconfig">Browse…</button></span>
+                </label>
+                <div class="row">
+                  <label class="field" style="flex:1;min-width:200px"><span>Context</span>
+                    <select id="cf-kube-context"><option value="">— load contexts —</option></select>
+                  </label>
+                  <button type="button" id="btn-kube-contexts" class="btn small" style="align-self:end">Load contexts</button>
+                </div>
+                <div class="row" role="radiogroup" aria-label="Kubernetes connection mode">
+                  <label class="check"><input type="radio" name="cf-kube-mode" value="portforward" checked /> Port-forward to one pod</label>
+                  <label class="check"><input type="radio" name="cf-kube-mode" value="agent" /> Via in-cluster agent (reach any member)</label>
+                </div>
+                <div class="row" id="cf-kube-pf-row">
+                  <label class="field" style="flex:1;min-width:200px"><span>etcd pod</span>
+                    <select id="cf-kube-pod"><option value="">— discover pods —</option></select>
+                  </label>
+                  <button type="button" id="btn-kube-discover" class="btn small" style="align-self:end">Find etcd pods</button>
+                  <label class="field" style="width:110px"><span>Pod port</span>
+                    <input type="number" id="cf-kube-port" class="mono" value="2379" min="1" />
+                  </label>
+                </div>
+                <div class="tls-files hidden" id="cf-kube-agent-row">
+                  <div class="row">
+                    <label class="field" style="width:200px"><span>Agent namespace</span>
+                      <input type="text" id="cf-agent-ns" class="mono" value="etcdee-agent" />
+                    </label>
+                    <button type="button" id="btn-agent-deploy" class="btn small" style="align-self:end">Deploy / update agent</button>
+                    <button type="button" id="btn-agent-check" class="btn small ghost" style="align-self:end">Check status</button>
+                    <button type="button" id="btn-agent-remove" class="btn small danger" style="align-self:end">Remove agent</button>
+                    <span id="agent-status" class="mono dim" style="align-self:end;padding-bottom:7px;font-size:11.5px"></span>
+                  </div>
+                  <p class="hint" style="margin:0">
+                    A tiny broker pod (stock <span class="mono">node:alpine</span> image, source injected from a ConfigMap) is deployed
+                    with your kubeconfig credentials. The app tunnels to it, and it opens connections to any etcd address the cluster
+                    can reach — so put the <em>in-cluster</em> endpoints (service DNS, pod or node IPs) in the Endpoints field above.
+                    Access requires a bearer token stored in a cluster Secret, and only etcd ports (2379, 2380) are reachable.
+                  </p>
+                </div>
+                <p class="hint" style="margin:0">
+                  Traffic is tunnelled through the Kubernetes API server, like <span class="mono">kubectl port-forward</span>.
+                  For a control-plane etcd (kubeadm, kind) you still need its client certificates below — on the node they live at
+                  <span class="mono">/etc/kubernetes/pki/etcd/ca.crt</span> and <span class="mono">/etc/kubernetes/pki/apiserver-etcd-client.{crt,key}</span>.
+                </p>
+              </div>
+              <div class="span2">
+                <label class="check"><input type="checkbox" id="cf-tls" /> Use TLS client certificates</label>
+              </div>
+              <div class="span2 tls-files hidden" id="cf-tls-files">
+                <label class="field"><span>CA certificate</span>
+                  <span class="file-pick"><input type="text" id="cf-ca" class="mono" placeholder="/path/to/ca.crt" /><button type="button" class="btn small" data-pick="cf-ca">Browse…</button></span>
+                </label>
+                <label class="field"><span>Client certificate</span>
+                  <span class="file-pick"><input type="text" id="cf-cert" class="mono" placeholder="/path/to/client.crt" /><button type="button" class="btn small" data-pick="cf-cert">Browse…</button></span>
+                </label>
+                <label class="field"><span>Client key</span>
+                  <span class="file-pick"><input type="text" id="cf-key" class="mono" placeholder="/path/to/client.key" /><button type="button" class="btn small" data-pick="cf-key">Browse…</button></span>
+                </label>
+              </div>
+              <div class="span2 form-actions">
+                <button type="submit" id="btn-connect" class="btn primary">Connect</button>
+                <button type="button" id="btn-save-profile" class="btn">Save profile</button>
+                <span class="grow"></span>
+                <button type="button" id="btn-delete-profile" class="btn danger small hidden">Delete profile</button>
+              </div>
+              <p class="hint span2" id="pw-storage-hint"></p>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== keys view -->
+      <section id="view-keys" class="view" aria-label="Keys">
+        <div class="view-head">
+          <h1>Keys</h1>
+          <span class="sub" id="keys-sub"></span>
+          <span class="grow"></span>
+          <input type="text" id="keys-prefix" class="mono" placeholder="prefix, e.g. /app/" style="width:220px" aria-label="Key prefix to load" />
+          <button id="btn-keys-refresh" class="btn small" title="Reload keys (⌘R)">Refresh</button>
+          <button id="btn-new-key" class="btn small primary" title="Create key (⌘N)">+ New key</button>
+          <button id="btn-del-prefix" class="btn small danger">Delete prefix…</button>
+        </div>
+        <div class="keys-layout">
+          <div class="keys-side">
+            <div class="tree-tools">
+              <input type="text" id="keys-filter" placeholder="Filter keys… (⌘K)" aria-label="Filter keys" />
+            </div>
+            <div class="tree-scroll">
+              <ul id="key-tree" role="tree" aria-label="Key tree"></ul>
+              <div id="tree-empty" class="tree-empty hidden"></div>
+            </div>
+          </div>
+          <div class="editor-pane">
+            <div id="editor-empty" class="editor-empty">
+              <div class="big">No key selected</div>
+              <div>Choose a key from the tree, or press <kbd>⌘N</kbd> to create one.</div>
+            </div>
+            <div id="editor-main" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
+              <div class="editor-head">
+                <div class="key-line">
+                  <span id="editor-key" class="key-name"></span>
+                  <button id="btn-copy-key" class="btn small ghost" title="Copy key name">Copy key</button>
+                  <span class="grow" style="flex:1"></span>
+                  <button id="btn-key-delete" class="btn small danger">Delete</button>
+                </div>
+                <div class="meta-chips" id="editor-meta"></div>
+              </div>
+              <div class="editor-body">
+                <div class="editor-toolbar">
+                  <span id="editor-encoding" class="badge dim"></span>
+                  <span id="json-state" class="json-state"></span>
+                  <span class="grow"></span>
+                  <label class="check" style="font-size:12px" title="Load the value as of an older revision">
+                    <span class="micro">rev</span>
+                    <input type="number" id="editor-rev" style="width:110px;min-height:25px;padding:2px 8px" class="mono" placeholder="latest" aria-label="View at revision" />
+                  </label>
+                  <button id="btn-load-rev" class="btn small">Load</button>
+                  <button id="btn-json-format" class="btn small">Format JSON</button>
+                  <button id="btn-copy-value" class="btn small ghost">Copy value</button>
+                </div>
+                <textarea id="value-editor" class="code" spellcheck="false" aria-label="Key value"></textarea>
+                <div class="editor-foot">
+                  <span id="editor-dirty" class="badge warn hidden">unsaved changes</span>
+                  <span id="editor-oldrev" class="badge info hidden">viewing old revision — saving restores it</span>
+                  <span class="grow"></span>
+                  <button id="btn-key-save" class="btn primary">Save <kbd style="margin-left:4px">⌘S</kbd></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== watch view -->
+      <section id="view-watch" class="view" aria-label="Watch">
+        <div class="view-head">
+          <h1>Watch</h1>
+          <span class="sub">live changes streamed from etcd</span>
+          <span class="grow"></span>
+          <input type="text" id="watch-target" class="mono" placeholder="key or prefix, e.g. /app/" style="width:240px" aria-label="Watch target" />
+          <label class="check"><input type="checkbox" id="watch-prefix" checked /> prefix</label>
+          <button id="btn-watch-toggle" class="btn small primary">Start watch</button>
+          <button id="btn-watch-clear" class="btn small ghost">Clear</button>
+        </div>
+        <div class="view-body no-pad">
+          <div id="watch-feed" class="watch-feed" role="log" aria-label="Watch events" aria-live="polite"></div>
+          <div id="watch-empty" class="tree-empty">No events yet. Start a watch to stream changes in real time.</div>
+        </div>
+      </section>
+
+      <!-- ============================== leases view -->
+      <section id="view-leases" class="view" aria-label="Leases">
+        <div class="view-head">
+          <h1>Leases</h1>
+          <span class="sub">TTL-bound handles — keys attached to a lease vanish when it expires</span>
+          <span class="grow"></span>
+          <input type="number" id="lease-ttl" class="mono" placeholder="TTL sec" min="1" style="width:110px" aria-label="TTL seconds for new lease" />
+          <button id="btn-lease-grant" class="btn small primary">Grant lease</button>
+          <button id="btn-lease-refresh" class="btn small">Refresh</button>
+        </div>
+        <div class="view-body">
+          <table class="data" id="lease-table">
+            <thead><tr><th>Lease ID</th><th>TTL remaining</th><th>Granted TTL</th><th>Attached keys</th><th class="actions-cell">Actions</th></tr></thead>
+            <tbody id="lease-rows"></tbody>
+          </table>
+          <div id="lease-empty" class="tree-empty hidden">No active leases.</div>
+        </div>
+      </section>
+
+      <!-- ============================== cluster view -->
+      <section id="view-cluster" class="view" aria-label="Cluster">
+        <div class="view-head">
+          <h1>Cluster</h1>
+          <span class="sub" id="cluster-sub"></span>
+          <span class="grow"></span>
+          <button id="btn-cluster-refresh" class="btn small">Refresh</button>
+        </div>
+        <div class="view-body">
+          <div id="member-grid" class="member-grid"></div>
+          <h2 style="margin:22px 0 8px;font-size:13.5px">Active alarms</h2>
+          <div id="alarm-list"></div>
+        </div>
+      </section>
+
+      <!-- ============================== maintenance view -->
+      <section id="view-maint" class="view" aria-label="Maintenance">
+        <div class="view-head">
+          <h1>Maintenance</h1>
+          <span class="sub">snapshots, compaction, defragmentation</span>
+          <span class="grow"></span>
+          <button id="btn-maint-refresh" class="btn small">Refresh status</button>
+        </div>
+        <div class="view-body">
+          <div class="stat-grid" id="maint-stats"></div>
+          <div class="maint-grid">
+            <div class="panel">
+              <h2>Snapshot</h2>
+              <p class="hint">Stream a consistent point-in-time snapshot of the keyspace to a local <span class="mono">.db</span> file. Restore later with <span class="mono">etcdutl snapshot restore</span>.</p>
+              <div class="maint-actions">
+                <button id="btn-snapshot" class="btn primary">Save snapshot…</button>
+                <span id="snapshot-progress" class="progress-line" role="status"></span>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>Compact</h2>
+              <p class="hint">Discard key history older than a revision. Frees logical space; reads at compacted revisions stop working.</p>
+              <div class="maint-actions">
+                <input type="number" id="compact-rev" class="mono" placeholder="revision (blank = current)" style="width:200px" aria-label="Revision to compact to" />
+                <button id="btn-compact" class="btn">Compact…</button>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>Defragment</h2>
+              <p class="hint">Rebuild the backend database to reclaim disk space after compaction. Blocks the member while it runs — avoid during peak traffic.</p>
+              <div class="maint-actions">
+                <button id="btn-defrag" class="btn">Defragment…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== auth view -->
+      <section id="view-auth" class="view" aria-label="Access control">
+        <div class="view-head">
+          <h1>Access</h1>
+          <span class="sub" id="auth-sub"></span>
+          <span class="grow"></span>
+          <button id="btn-auth-refresh" class="btn small">Refresh</button>
+        </div>
+        <div class="view-body">
+          <div class="auth-grid">
+            <div class="panel">
+              <h2>Users</h2>
+              <form id="user-add-form" class="inline-form">
+                <label class="field"><span>Username</span><input type="text" id="ua-name" autocomplete="off" /></label>
+                <label class="field"><span>Password</span><input type="password" id="ua-pass" autocomplete="new-password" /></label>
+                <button type="submit" class="btn small primary">Add user</button>
+              </form>
+              <table class="data"><thead><tr><th>User</th><th>Roles</th><th class="actions-cell">Actions</th></tr></thead>
+                <tbody id="user-rows"></tbody></table>
+            </div>
+            <div class="panel">
+              <h2>Roles</h2>
+              <form id="role-add-form" class="inline-form">
+                <label class="field"><span>Role name</span><input type="text" id="ra-name" autocomplete="off" /></label>
+                <button type="submit" class="btn small primary">Add role</button>
+              </form>
+              <table class="data"><thead><tr><th>Role</th><th>Permissions</th><th class="actions-cell">Actions</th></tr></thead>
+                <tbody id="role-rows"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===================================================== dialogs -->
+  <dialog id="dlg-confirm" aria-labelledby="dlg-confirm-title">
+    <div class="dlg-head" id="dlg-confirm-title"></div>
+    <div class="dlg-body" id="dlg-confirm-body"></div>
+    <div class="dlg-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn danger" id="dlg-confirm-ok">Confirm</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-newkey" aria-labelledby="dlg-newkey-title">
+    <div class="dlg-head" id="dlg-newkey-title">New key</div>
+    <form method="dialog" class="dlg-body" id="newkey-form" style="padding-bottom:0">
+      <label class="field"><span>Key <span class="req">*</span></span>
+        <input type="text" id="nk-key" class="mono" placeholder="/app/config/feature" autocomplete="off" required />
+      </label>
+      <label class="field"><span>Value</span>
+        <textarea id="nk-value" class="code" rows="6" spellcheck="false"></textarea>
+      </label>
+      <label class="field"><span>TTL seconds (optional — attaches a new lease)</span>
+        <input type="number" id="nk-ttl" class="mono" min="1" placeholder="none" />
+      </label>
+    </form>
+    <div class="dlg-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="btn-newkey-create">Create</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-grant-perm" aria-labelledby="dlg-grant-title">
+    <div class="dlg-head" id="dlg-grant-title">Grant permission</div>
+    <div class="dlg-body" style="padding-bottom:0">
+      <div>Role: <strong id="gp-role" class="mono"></strong></div>
+      <label class="field"><span>Key or prefix <span class="req">*</span></span>
+        <input type="text" id="gp-key" class="mono" placeholder="/app/" />
+      </label>
+      <label class="check" style="margin-top:9px"><input type="checkbox" id="gp-prefix" checked /> Treat as prefix</label>
+      <label class="field"><span>Permission</span>
+        <select id="gp-perm">
+          <option value="Readwrite">Read + Write</option>
+          <option value="Read">Read only</option>
+          <option value="Write">Write only</option>
+        </select>
+      </label>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="btn-grant-perm-ok">Grant</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-help" aria-labelledby="dlg-help-title">
+    <div class="dlg-head" id="dlg-help-title">Keyboard shortcuts</div>
+    <div class="dlg-body">
+      <table class="data" style="margin-top:4px">
+        <tbody>
+          <tr><td style="font-family:var(--font-ui)">Filter keys</td><td><kbd>⌘K</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">New key</td><td><kbd>⌘N</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">Save value</td><td><kbd>⌘S</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">Refresh current view</td><td><kbd>⌘R</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">Views 1–7</td><td><kbd>⌘1</kbd>…<kbd>⌘7</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">Tree: move / expand / collapse</td><td><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd><kbd>←</kbd></td></tr>
+          <tr><td style="font-family:var(--font-ui)">This help</td><td><kbd>?</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="dlg-foot"><button class="btn primary" data-close>Close</button></div>
+  </dialog>
+
+  <div id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

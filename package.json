@@ -1,0 +1,21 @@
+{
+  "name": "etcdee",
+  "productName": "etcdee",
+  "version": "0.1.0",
+  "description": "A visual console for managing etcd clusters — browse, edit, watch, snapshot, and administer.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "node test/smoke.js",
+    "smoke:kube": "node test/kube-smoke.js"
+  },
+  "author": "Mike Chenetz",
+  "license": "MIT",
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "etcd3": "^1.1.2"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}
