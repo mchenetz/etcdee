@@ -210,6 +210,7 @@
               <div class="editor-body">
                 <div class="editor-toolbar">
                   <span id="editor-encoding" class="badge dim"></span>
+                  <span id="value-type" class="badge info"></span>
                   <span id="json-state" class="json-state"></span>
                   <span class="grow"></span>
                   <label class="check" style="font-size:12px" title="Load the value as of an older revision">
@@ -217,10 +218,19 @@
                     <input type="number" id="editor-rev" style="width:110px;min-height:25px;padding:2px 8px" class="mono" placeholder="latest" aria-label="View at revision" />
                   </label>
                   <button id="btn-load-rev" class="btn small">Load</button>
-                  <button id="btn-json-format" class="btn small">Format JSON</button>
                   <button id="btn-copy-value" class="btn small ghost">Copy value</button>
                 </div>
+                <div class="editor-toolbar">
+                  <div class="segmented" id="view-modes" role="tablist" aria-label="Value view"></div>
+                  <span id="view-note" class="dim" style="font-size:11.5px"></span>
+                  <span class="grow"></span>
+                  <button id="btn-apply-view" class="btn small hidden" title="Replace the editable value with what is shown">Apply to editor</button>
+                  <button id="btn-b64-decode" class="btn small ghost" title="Replace the editor contents with the base64-decoded text">Decode base64</button>
+                  <button id="btn-b64-encode" class="btn small ghost" title="Replace the editor contents with their base64 encoding">Encode base64</button>
+                </div>
                 <textarea id="value-editor" class="code" spellcheck="false" aria-label="Key value"></textarea>
+                <pre id="value-view" class="code value-view hidden" tabindex="0" aria-label="Formatted value"></pre>
+                <div id="value-image" class="value-image hidden"><img id="value-image-img" alt="Image stored in this key" /></div>
                 <div class="editor-foot">
                   <span id="editor-dirty" class="badge warn hidden">unsaved changes</span>
                   <span id="editor-oldrev" class="badge info hidden">viewing old revision — saving restores it</span>
@@ -428,6 +438,7 @@
 
   <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 
+  <script src="codecs.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -35,9 +35,29 @@ npm start
 - Full CRUD: create (optionally with a TTL lease), edit, save, delete, and
   guarded delete-by-prefix (type `DELETE` to confirm).
 - Metadata for every key: version, create/mod revision, size, attached lease.
-- JSON validation + pretty-printing; binary values are detected and shown as
-  base64.
 - Read a key at an older revision and restore it by saving.
+
+**Value views** — etcdee sniffs each value and offers read-only renderings of
+it. Switching view *never* touches the edit buffer, so formatting a value
+costs nothing and leaves the key unmodified:
+
+| View | Shown for |
+| --- | --- |
+| Raw | always — the editable source of truth |
+| Pretty JSON | anything that parses as JSON |
+| Kubernetes | `k8s\0` protobuf: apiVersion, kind, and a named field tree |
+| Decompressed | gzip values (decompressed, then pretty-printed if JSON) |
+| Base64 decoded | values whose text is valid base64 |
+| Image | PNG / JPEG / GIF, rendered inline |
+| Hex | always — offset, hex, and ASCII gutter |
+
+The most readable view opens automatically, so a Kubernetes object shows as
+`kind: Namespace` with named metadata and ISO timestamps instead of base64.
+PDF, ZIP, SQLite, bzip2 and xz values are labelled by type.
+
+Two buttons do change the value, and say so: **Apply to editor** turns the
+current rendering into a real edit, and **Decode/Encode base64** transform
+the buffer inline. Both mark the key dirty and need an explicit save.
 
 **Watch** — live event feed for any key or prefix, with previous values on
 updates and deletes.
@@ -128,6 +148,8 @@ lib/kube-bridge.js   kubeconfig parsing, etcd pod discovery, a local TCP
 lib/agent-manager.js deploys/removes the in-cluster agent via the K8s API
 agent/agent.js       the agent itself: authenticated CONNECT proxy, no deps
 renderer/          index.html + styles.css + app.js (no framework, no bundler)
+renderer/codecs.js   value sniffing and read-only renderings (JSON, protobuf,
+                     Kubernetes, gzip, base64, hex) — pure, no side effects
 test/smoke.js      End-to-end service test against a real etcd (npm run smoke)
 ```
 

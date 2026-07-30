@@ -124,7 +124,7 @@ const state = {
   keys: [],           // [{key, modRevision, ...}]
   expanded: new Set(),
   selectedKey: null,
-  editor: { dirty: false, encoding: 'utf8', loadedRev: null },
+  editor: { dirty: false, encoding: 'utf8', loadedRev: null, view: 'raw', info: null },
   watching: false,
 };
 
@@ -749,8 +749,14 @@ function renderEditor(data) {
   const enc = $('#editor-encoding');
   enc.textContent = data.value.encoding === 'base64' ? 'binary · shown as base64' : 'utf-8';
   enc.className = data.value.encoding === 'base64' ? 'badge warn' : 'badge dim';
-  $('#btn-json-format').disabled = data.value.encoding === 'base64';
+
+  // Open a decodable value in its most readable view rather than raw bytes.
+  const info = Codecs.inspect(Codecs.toBytes(data.value.text, data.value.encoding));
+  const preferred = ['k8s', 'image', 'gunzip', 'pretty'].find((v) => info.views.includes(v));
+  state.editor.view = preferred || 'raw';
+
   updateJsonState();
+  refreshValueInfo();
 }
 
 function updateJsonState() {
@@ -762,18 +768,156 @@ function updateJsonState() {
   catch (_) { out.textContent = 'invalid JSON'; out.style.color = 'var(--warn)'; }
 }
 
+let infoTimer = null;
 $('#value-editor').addEventListener('input', () => {
   state.editor.dirty = true;
   $('#editor-dirty').classList.remove('hidden');
   updateJsonState();
+  clearTimeout(infoTimer);
+  infoTimer = setTimeout(refreshValueInfo, 200);
 });
 
-$('#btn-json-format').addEventListener('click', () => {
+// ------------------------------------------------------------- value views
+//
+// Views are read-only renderings computed from the edit buffer. Switching
+// view never writes to the textarea, so formatting a value costs nothing and
+// leaves the key unmodified. "Apply to editor" is the one opt-in that does
+// turn a rendering into a real (savable) edit.
+
+const VIEW_LABELS = {
+  raw: 'Raw',
+  pretty: 'Pretty JSON',
+  k8s: 'Kubernetes',
+  gunzip: 'Decompressed',
+  base64: 'Base64 decoded',
+  image: 'Image',
+  hex: 'Hex',
+};
+
+// Views whose text is a faithful alternative encoding of the same value and
+// so may be written back to the editor.
+const APPLICABLE = new Set(['pretty', 'base64', 'gunzip']);
+
+function currentBytes() {
+  return Codecs.toBytes($('#value-editor').value, state.editor.encoding);
+}
+
+function refreshValueInfo() {
+  let info;
   try {
-    const editor = $('#value-editor');
-    editor.value = JSON.stringify(JSON.parse(editor.value), null, 2);
-    editor.dispatchEvent(new Event('input'));
-  } catch (_) { toast('Value is not valid JSON', 'warn'); }
+    info = Codecs.inspect(currentBytes());
+  } catch (_) {
+    info = { typeName: 'unknown', views: ['raw', 'hex'], json: null };
+  }
+  state.editor.info = info;
+
+  // A view can stop applying after an edit (e.g. JSON becomes invalid).
+  if (!info.views.includes(state.editor.view)) state.editor.view = 'raw';
+
+  $('#value-type').textContent = info.typeName;
+  const bar = $('#view-modes');
+  bar.textContent = '';
+  for (const view of info.views) {
+    bar.append(el('button', {
+      type: 'button', role: 'tab',
+      'aria-selected': String(view === state.editor.view),
+      onclick: () => setView(view),
+    }, VIEW_LABELS[view] || view));
+  }
+  renderView();
+}
+
+const setView = (view) => { state.editor.view = view; refreshValueInfo(); };
+
+async function renderView() {
+  const view = state.editor.view;
+  const editor = $('#value-editor');
+  const pre = $('#value-view');
+  const imageBox = $('#value-image');
+
+  const showEditor = view === 'raw';
+  editor.classList.toggle('hidden', !showEditor);
+  pre.classList.toggle('hidden', showEditor || view === 'image');
+  imageBox.classList.toggle('hidden', view !== 'image');
+  $('#view-note').textContent = showEditor ? '' : 'read-only view — switch to Raw to edit';
+  $('#btn-apply-view').classList.toggle('hidden', !APPLICABLE.has(view));
+  if (showEditor) return;
+
+  const bytes = currentBytes();
+  try {
+    if (view === 'pretty') {
+      pre.textContent = Codecs.prettyJson($('#value-editor').value) ?? 'not valid JSON';
+    } else if (view === 'hex') {
+      pre.textContent = Codecs.hexDump(bytes);
+    } else if (view === 'k8s') {
+      const decoded = Codecs.decodeK8s(bytes);
+      pre.textContent = decoded ? Codecs.renderK8s(decoded) : 'not a Kubernetes protobuf value';
+    } else if (view === 'gunzip') {
+      const out = await Codecs.gunzip(bytes);
+      const text = Codecs.tryUtf8(out);
+      pre.textContent = Codecs.isPrintable(text)
+        ? (Codecs.prettyJson(text) ?? text)
+        : Codecs.hexDump(out);
+    } else if (view === 'base64') {
+      const out = Codecs.toBytes($('#value-editor').value.trim(), 'base64');
+      const text = Codecs.tryUtf8(out);
+      pre.textContent = Codecs.isPrintable(text)
+        ? (Codecs.prettyJson(text) ?? text)
+        : Codecs.hexDump(out);
+    } else if (view === 'image') {
+      const blob = new Blob([bytes], { type: state.editor.info.mime });
+      const url = URL.createObjectURL(blob);
+      const img = $('#value-image-img');
+      if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+      img.dataset.url = url;
+      img.src = url;
+    }
+  } catch (err) {
+    pre.textContent = `could not decode: ${err.message}`;
+  }
+}
+
+$('#btn-apply-view').addEventListener('click', () => {
+  const text = $('#value-view').textContent;
+  if (!text) return;
+  const editor = $('#value-editor');
+  if (state.editor.view === 'base64' || state.editor.view === 'gunzip') {
+    // The rendered text becomes the value itself, so it is stored as UTF-8.
+    state.editor.encoding = 'utf8';
+  }
+  editor.value = text;
+  state.editor.view = 'raw';
+  editor.dispatchEvent(new Event('input'));
+  toast('Applied to the editor — save to write it to etcd');
+});
+
+// Inline base64 transforms. Unlike views these DO edit the buffer, so they
+// mark the key dirty and need an explicit save.
+$('#btn-b64-decode').addEventListener('click', () => {
+  const editor = $('#value-editor');
+  const text = editor.value.trim();
+  if (!Codecs.looksLikeBase64(text)) { toast('Value is not valid base64', 'warn'); return; }
+  const bytes = Codecs.toBytes(text, 'base64');
+  const decoded = Codecs.tryUtf8(bytes);
+  if (!Codecs.isPrintable(decoded)) {
+    toast('Decodes to binary — use the Hex view instead of editing it as text', 'warn');
+    setView('hex');
+    return;
+  }
+  editor.value = decoded;
+  state.editor.encoding = 'utf8';
+  state.editor.view = 'raw';
+  editor.dispatchEvent(new Event('input'));
+  toast('Decoded — save to write it to etcd');
+});
+
+$('#btn-b64-encode').addEventListener('click', () => {
+  const editor = $('#value-editor');
+  editor.value = Codecs.bytesToBase64(currentBytes());
+  state.editor.encoding = 'utf8'; // the base64 text is now the stored value
+  state.editor.view = 'raw';
+  editor.dispatchEvent(new Event('input'));
+  toast('Encoded — save to write it to etcd');
 });
 
 $('#btn-copy-key').addEventListener('click', guard(async () => {
