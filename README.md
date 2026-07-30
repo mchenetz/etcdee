@@ -55,6 +55,12 @@ The most readable view opens automatically, so a Kubernetes object shows as
 `kind: Namespace` with named metadata and ISO timestamps instead of base64.
 PDF, ZIP, SQLite, bzip2 and xz values are labelled by type.
 
+Rendered views are syntax highlighted — keys, strings, numbers, literals,
+timestamps and byte offsets each get their own colour, in both themes.
+Highlighting is tokenizer-driven and lossless (the painted text always
+equals the source), and is skipped above 300 KiB where it would cost more
+than it helps.
+
 Two buttons do change the value, and say so: **Apply to editor** turns the
 current rendering into a real edit, and **Decode/Encode base64** transform
 the buffer inline. Both mark the key dirty and need an explicit save.

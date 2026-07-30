@@ -318,9 +318,94 @@ const Codecs = (() => {
     return `${header}\n\n${renderFields(decoded.object, 0, TOP_LEVEL, true)}`;
   }
 
+  // ------------------------------------------------------------- tokenizing
+  //
+  // Tokenizers return [{t, v}] rather than markup so they stay DOM-free and
+  // unit-testable; the renderer turns each token into a styled span, which
+  // also means value text is never interpolated into HTML.
+
+  const ISO_DATE = /^\s*\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*$/;
+
+  function tokenizeJson(text) {
+    const tokens = [];
+    const re = /("(?:[^"\\]|\\.)*")(\s*:)?|(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)|\b(true|false|null)\b|([{}[\],])/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) tokens.push({ t: 'plain', v: text.slice(last, m.index) });
+      if (m[1] !== undefined) {
+        if (m[2] !== undefined) {
+          tokens.push({ t: 'key', v: m[1] }, { t: 'punct', v: m[2] });
+        } else {
+          tokens.push({ t: 'string', v: m[1] });
+        }
+      } else if (m[3] !== undefined) tokens.push({ t: 'number', v: m[3] });
+      else if (m[4] !== undefined) tokens.push({ t: 'literal', v: m[4] });
+      else tokens.push({ t: 'punct', v: m[5] });
+      last = re.lastIndex;
+    }
+    if (last < text.length) tokens.push({ t: 'plain', v: text.slice(last) });
+    return tokens;
+  }
+
+  function classifyValue(raw) {
+    if (/^\s*".*"\s*$/s.test(raw)) return 'string';
+    if (/^\s*-?\d+(\.\d+)?\s*$/.test(raw)) return 'number';
+    if (ISO_DATE.test(raw)) return 'date';
+    if (/^\s*<\d+ bytes>/.test(raw)) return 'meta';
+    return 'plain';
+  }
+
+  function tokenizeFieldTree(text) {
+    const tokens = [];
+    for (const line of text.split('\n')) {
+      const m = /^(\s*)([^:]+):(.*)$/.exec(line);
+      if (!m) {
+        tokens.push({ t: 'plain', v: `${line}\n` });
+        continue;
+      }
+      const [, indent, label, rest] = m;
+      tokens.push({ t: 'plain', v: indent });
+      tokens.push({ t: label.startsWith('#') ? 'meta' : 'key', v: label });
+      tokens.push({ t: 'punct', v: ':' });
+      if (rest) tokens.push({ t: classifyValue(rest), v: rest });
+      tokens.push({ t: 'plain', v: '\n' });
+    }
+    return tokens;
+  }
+
+  function tokenizeHex(text) {
+    const tokens = [];
+    for (const line of text.split('\n')) {
+      const bar = line.indexOf('|');
+      if (line.length < 8 || bar === -1) {
+        tokens.push({ t: 'meta', v: `${line}\n` });
+        continue;
+      }
+      tokens.push({ t: 'meta', v: line.slice(0, 8) });
+      tokens.push({ t: 'plain', v: line.slice(8, bar) });
+      tokens.push({ t: 'string', v: line.slice(bar) });
+      tokens.push({ t: 'plain', v: '\n' });
+    }
+    return tokens;
+  }
+
+  // Highlighting a very large value would create tens of thousands of spans
+  // for no readability gain; fall back to plain text past this size.
+  const MAX_HIGHLIGHT = 300 * 1024;
+
+  function tokenize(text, mode) {
+    if (!text || text.length > MAX_HIGHLIGHT) return [{ t: 'plain', v: text || '' }];
+    if (mode === 'json') return tokenizeJson(text);
+    if (mode === 'tree') return tokenizeFieldTree(text);
+    if (mode === 'hex') return tokenizeHex(text);
+    return [{ t: 'plain', v: text }];
+  }
+
   return {
     toBytes, bytesToBase64, tryUtf8, isPrintable, looksLikeBase64,
     inspect, prettyJson, hexDump, gunzip,
     decodeProtobuf, decodeK8s, renderK8s, renderFields, jsonParse,
+    tokenize,
   };
 })();

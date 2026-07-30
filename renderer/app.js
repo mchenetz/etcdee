@@ -802,6 +802,25 @@ function currentBytes() {
   return Codecs.toBytes($('#value-editor').value, state.editor.encoding);
 }
 
+/** Paint tokenized text into a node as styled spans (never as HTML). */
+function paint(node, text, mode) {
+  node.textContent = '';
+  const frag = document.createDocumentFragment();
+  for (const { t, v } of Codecs.tokenize(text, mode)) {
+    if (t === 'plain') frag.append(document.createTextNode(v));
+    else frag.append(el('span', { class: `tok-${t}` }, v));
+  }
+  node.append(frag);
+}
+
+/** Render decoded bytes: pretty JSON when it is JSON, else text, else hex. */
+function paintDecoded(node, bytes) {
+  const text = Codecs.tryUtf8(bytes);
+  if (!Codecs.isPrintable(text)) { paint(node, Codecs.hexDump(bytes), 'hex'); return; }
+  const pretty = Codecs.prettyJson(text);
+  paint(node, pretty ?? text, pretty ? 'json' : null);
+}
+
 function refreshValueInfo() {
   let info;
   try {
@@ -839,31 +858,27 @@ async function renderView() {
   editor.classList.toggle('hidden', !showEditor);
   pre.classList.toggle('hidden', showEditor || view === 'image');
   imageBox.classList.toggle('hidden', view !== 'image');
-  $('#view-note').textContent = showEditor ? '' : 'read-only view — switch to Raw to edit';
+  const note = $('#view-note');
+  note.textContent = showEditor ? '' : 'read-only';
+  note.title = showEditor ? '' : 'This is a rendering of the value — switch to Raw to edit it';
   $('#btn-apply-view').classList.toggle('hidden', !APPLICABLE.has(view));
   if (showEditor) return;
 
   const bytes = currentBytes();
   try {
     if (view === 'pretty') {
-      pre.textContent = Codecs.prettyJson($('#value-editor').value) ?? 'not valid JSON';
+      const pretty = Codecs.prettyJson($('#value-editor').value);
+      paint(pre, pretty ?? 'not valid JSON', pretty ? 'json' : null);
     } else if (view === 'hex') {
-      pre.textContent = Codecs.hexDump(bytes);
+      paint(pre, Codecs.hexDump(bytes), 'hex');
     } else if (view === 'k8s') {
       const decoded = Codecs.decodeK8s(bytes);
-      pre.textContent = decoded ? Codecs.renderK8s(decoded) : 'not a Kubernetes protobuf value';
+      if (decoded) paint(pre, Codecs.renderK8s(decoded), 'tree');
+      else paint(pre, 'not a Kubernetes protobuf value', null);
     } else if (view === 'gunzip') {
-      const out = await Codecs.gunzip(bytes);
-      const text = Codecs.tryUtf8(out);
-      pre.textContent = Codecs.isPrintable(text)
-        ? (Codecs.prettyJson(text) ?? text)
-        : Codecs.hexDump(out);
+      paintDecoded(pre, await Codecs.gunzip(bytes));
     } else if (view === 'base64') {
-      const out = Codecs.toBytes($('#value-editor').value.trim(), 'base64');
-      const text = Codecs.tryUtf8(out);
-      pre.textContent = Codecs.isPrintable(text)
-        ? (Codecs.prettyJson(text) ?? text)
-        : Codecs.hexDump(out);
+      paintDecoded(pre, Codecs.toBytes($('#value-editor').value.trim(), 'base64'));
     } else if (view === 'image') {
       const blob = new Blob([bytes], { type: state.editor.info.mime });
       const url = URL.createObjectURL(blob);

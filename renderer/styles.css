@@ -28,6 +28,15 @@
   --danger-ink: #33060c;
   --danger-dim: rgba(255, 107, 122, 0.14);
 
+  /* syntax tokens — tuned against --bg2 in each theme */
+  --syn-key: #7fd3ff;
+  --syn-string: #2ee6a8;
+  --syn-number: #ffb454;
+  --syn-literal: #c792ea;
+  --syn-date: #58c4ff;
+  --syn-meta: #7d8b99;
+  --syn-punct: #6b7885;
+
   --radius: 8px;
   --radius-sm: 5px;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
@@ -56,6 +65,14 @@
   --danger-ink: #ffffff;
   --danger-dim: rgba(187, 45, 64, 0.10);
   --shadow: 0 10px 30px rgba(40, 35, 20, 0.18);
+
+  --syn-key: #0a5b8a;
+  --syn-string: #0c6b45;
+  --syn-number: #97530c;
+  --syn-literal: #6b32a0;
+  --syn-date: #0a6ea8;
+  --syn-meta: #6d7982;
+  --syn-punct: #8b96a0;
 }
 
 * { box-sizing: border-box; }
@@ -593,6 +610,14 @@ li[aria-expanded="true"] > .tree-row .twisty { transform: rotate(90deg); }
   content: 'nothing to show';
   color: var(--ink-faint);
 }
+
+.tok-key { color: var(--syn-key); }
+.tok-string { color: var(--syn-string); }
+.tok-number { color: var(--syn-number); }
+.tok-literal { color: var(--syn-literal); font-weight: 600; }
+.tok-date { color: var(--syn-date); }
+.tok-meta { color: var(--syn-meta); }
+.tok-punct { color: var(--syn-punct); }
 
 .value-image {
   flex: 1;
