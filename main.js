@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } = require('ele
 const { EtcdService } = require('./lib/etcd-service');
 const kube = require('./lib/kube-bridge');
 const agentManager = require('./lib/agent-manager');
+const { fetchEtcdCerts } = require('./lib/cert-fetcher');
 
 const service = new EtcdService();
 let mainWindow = null;
@@ -128,6 +129,10 @@ ipcMain.handle('auth:roleRevokePermission', wrap((a) => service.roleRevokePermis
 ipcMain.handle('kube:contexts', wrap((a) => kube.listContexts(a)));
 ipcMain.handle('kube:discover', wrap((a) => kube.discoverPods(a)));
 ipcMain.handle('kube:defaultPath', wrap(async () => ({ path: kube.DEFAULT_KUBECONFIG })));
+
+ipcMain.handle('kube:endpoints', wrap((a) => kube.discoverEndpoints(a).then((endpoints) => ({ endpoints }))));
+ipcMain.handle('kube:fetchCerts', wrap((a) =>
+  fetchEtcdCerts({ ...a, outDir: path.join(app.getPath('userData'), 'certs') })));
 
 ipcMain.handle('agent:ensure', wrap((a) => agentManager.ensureAgent(a)));
 ipcMain.handle('agent:status', wrap((a) => agentManager.agentStatus(a)));

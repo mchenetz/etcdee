@@ -275,11 +275,18 @@ function syncKubeMode() {
   const endpoints = $('#cf-endpoints');
   endpoints.disabled = pfMode;
   endpoints.placeholder = pfMode
-    ? 'set automatically by the port-forward'
+    ? 'not used — the port-forward sets this'
     : agentMode
-      ? 'in-cluster addresses, e.g. https://etcd.etcd.svc:2379 or https://10.0.0.5:2379'
+      ? 'leave blank to auto-discover every etcd pod, or list in-cluster addresses'
       : 'http://127.0.0.1:2379, http://127.0.0.1:22379';
-  endpoints.closest('label').querySelector('.req')?.classList.toggle('hidden', pfMode);
+
+  // Endpoints are only mandatory for a direct connection.
+  endpoints.closest('label').querySelector('.req').classList.toggle('hidden', on);
+  const note = $('#cf-endpoints-note');
+  note.classList.toggle('hidden', !on);
+  note.textContent = pfMode ? ' — not used in port-forward mode' : ' — optional, auto-discovered';
+
+  $('#btn-fetch-certs').classList.toggle('hidden', !on);
 }
 
 function renderProfiles() {
@@ -324,6 +331,42 @@ function kubeOptsFromForm() {
     namespace: $('#cf-agent-ns').value.trim() || 'etcdee-agent',
   };
 }
+
+$('#btn-kube-endpoints').addEventListener('click', guard(async () => {
+  const res = await call(api.kube.endpoints, {
+    configPath: $('#cf-kubeconfig').value.trim() || null,
+    context: $('#cf-kube-context').value || null,
+    port: Number($('#cf-kube-port').value) || 2379,
+    tls: $('#cf-tls').checked,
+  });
+  $('#cf-endpoints').value = res.endpoints.join(', ');
+  toast(`Filled ${res.endpoints.length} etcd endpoint(s)`);
+}));
+
+$('#btn-fetch-certs').addEventListener('click', guard(async () => {
+  const btn = $('#btn-fetch-certs');
+  const out = $('#cert-fetch-status');
+  btn.disabled = true;
+  out.textContent = 'searching cluster…';
+  try {
+    const res = await call(api.kube.fetchCerts, {
+      configPath: $('#cf-kubeconfig').value.trim() || null,
+      context: $('#cf-kube-context').value || null,
+    });
+    $('#cf-tls').checked = true;
+    $('#cf-tls-files').classList.remove('hidden');
+    $('#cf-ca').value = res.caFile;
+    $('#cf-cert').value = res.certFile;
+    $('#cf-key').value = res.keyFile;
+    out.textContent = `from ${res.source}`;
+    toast(`Loaded etcd certs from ${res.source}`);
+  } catch (err) {
+    out.textContent = '';
+    throw err;
+  } finally {
+    btn.disabled = false;
+  }
+}));
 
 $('#btn-agent-deploy').addEventListener('click', guard(async () => {
   const btn = $('#btn-agent-deploy');
@@ -401,14 +444,16 @@ $('#btn-kube-discover').addEventListener('click', guard(async () => {
 }));
 
 function validateProfile(p) {
-  if (p.kube.enabled && p.kube.mode === 'portforward') {
-    if (!p.kube.pod) { toast('Discover and choose an etcd pod first', 'warn'); return false; }
-  } else if (!p.endpoints) {
-    toast(p.kube.enabled
-      ? 'Enter the in-cluster etcd endpoint(s) the agent should reach'
-      : 'Endpoints are required', 'warn');
-    return false;
+  if (p.kube.enabled) {
+    // Agent mode discovers endpoints when none are given; port-forward mode
+    // derives them from the chosen pod. Neither needs the Endpoints field.
+    if (p.kube.mode === 'portforward' && !p.kube.pod) {
+      toast('Discover and choose an etcd pod first', 'warn');
+      return false;
+    }
+    return true;
   }
+  if (!p.endpoints) { toast('Endpoints are required', 'warn'); return false; }
   return true;
 }
 

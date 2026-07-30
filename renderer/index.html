@@ -81,8 +81,8 @@
               <label class="field span2"><span>Profile name</span>
                 <input type="text" id="cf-name" placeholder="local dev" autocomplete="off" />
               </label>
-              <label class="field span2"><span>Endpoints <span class="req">*</span></span>
-                <input type="text" id="cf-endpoints" class="mono" placeholder="http://127.0.0.1:2379, http://127.0.0.1:22379" autocomplete="off" required />
+              <label class="field span2"><span>Endpoints <span class="req">*</span><span id="cf-endpoints-note" class="dim hidden" style="font-weight:400"></span></span>
+                <input type="text" id="cf-endpoints" class="mono" placeholder="http://127.0.0.1:2379, http://127.0.0.1:22379" autocomplete="off" />
               </label>
               <label class="field"><span>Username</span>
                 <input type="text" id="cf-username" autocomplete="off" />
@@ -126,6 +126,10 @@
                     <button type="button" id="btn-agent-remove" class="btn small danger" style="align-self:end">Remove agent</button>
                     <span id="agent-status" class="mono dim" style="align-self:end;padding-bottom:7px;font-size:11.5px"></span>
                   </div>
+                  <div class="row">
+                    <button type="button" id="btn-kube-endpoints" class="btn small">Fill endpoints from etcd pods</button>
+                    <span class="dim" style="font-size:11.5px">optional — left blank, etcdee discovers every etcd pod on connect</span>
+                  </div>
                   <p class="hint" style="margin:0">
                     A tiny broker pod (stock <span class="mono">node:alpine</span> image, source injected from a ConfigMap) is deployed
                     with your kubeconfig credentials. The app tunnels to it, and it opens connections to any etcd address the cluster
@@ -139,8 +143,10 @@
                   <span class="mono">/etc/kubernetes/pki/etcd/ca.crt</span> and <span class="mono">/etc/kubernetes/pki/apiserver-etcd-client.{crt,key}</span>.
                 </p>
               </div>
-              <div class="span2">
+              <div class="span2 row">
                 <label class="check"><input type="checkbox" id="cf-tls" /> Use TLS client certificates</label>
+                <button type="button" id="btn-fetch-certs" class="btn small hidden">Fetch certs from cluster</button>
+                <span id="cert-fetch-status" class="dim mono" style="font-size:11.5px"></span>
               </div>
               <div class="span2 tls-files hidden" id="cf-tls-files">
                 <label class="field"><span>CA certificate</span>

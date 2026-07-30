@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('etcdee', {
     contexts: invoke('kube:contexts'),
     discover: invoke('kube:discover'),
     defaultPath: invoke('kube:defaultPath'),
+    endpoints: invoke('kube:endpoints'),
+    fetchCerts: invoke('kube:fetchCerts'),
   },
   agent: {
     ensure: invoke('agent:ensure'),
