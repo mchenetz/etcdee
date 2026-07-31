@@ -103,6 +103,16 @@
                   </label>
                   <button type="button" id="btn-kube-contexts" class="btn small" style="align-self:end">Load contexts</button>
                 </div>
+                <div class="row">
+                  <label class="field" style="flex:1;min-width:200px"><span>Namespace</span>
+                    <input type="text" id="cf-kube-ns" class="mono" list="kube-namespaces" placeholder="all namespaces — or e.g. my-app, openshift-etcd" autocomplete="off" />
+                    <datalist id="kube-namespaces"></datalist>
+                  </label>
+                  <button type="button" id="btn-kube-namespaces" class="btn small" style="align-self:end">Load namespaces</button>
+                  <label class="check" style="align-self:end;padding-bottom:7px" title="Show every pod in the namespace, not only ones that look like etcd">
+                    <input type="checkbox" id="cf-kube-allpods" /> list every pod
+                  </label>
+                </div>
                 <div class="row" role="radiogroup" aria-label="Kubernetes connection mode">
                   <label class="check"><input type="radio" name="cf-kube-mode" value="portforward" checked /> Port-forward to one pod</label>
                   <label class="check"><input type="radio" name="cf-kube-mode" value="agent" /> Via in-cluster agent (reach any member)</label>
@@ -127,8 +137,9 @@
                     <span id="agent-status" class="mono dim" style="align-self:end;padding-bottom:7px;font-size:11.5px"></span>
                   </div>
                   <div class="row">
-                    <button type="button" id="btn-kube-endpoints" class="btn small">Fill endpoints from etcd pods</button>
-                    <span class="dim" style="font-size:11.5px">optional — left blank, etcdee discovers every etcd pod on connect</span>
+                    <button type="button" id="btn-kube-endpoints" class="btn small">Fill from etcd pods</button>
+                    <button type="button" id="btn-kube-services" class="btn small">Fill from services</button>
+                    <span class="dim" style="font-size:11.5px">optional — left blank, etcdee discovers etcd on connect</span>
                   </div>
                   <p class="hint" style="margin:0">
                     A tiny broker pod (stock <span class="mono">node:alpine</span> image, source injected from a ConfigMap) is deployed

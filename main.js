@@ -130,6 +130,8 @@ ipcMain.handle('kube:contexts', wrap((a) => kube.listContexts(a)));
 ipcMain.handle('kube:discover', wrap((a) => kube.discoverPods(a)));
 ipcMain.handle('kube:defaultPath', wrap(async () => ({ path: kube.DEFAULT_KUBECONFIG })));
 
+ipcMain.handle('kube:namespaces', wrap((a) => kube.listNamespaces(a)));
+ipcMain.handle('kube:services', wrap((a) => kube.discoverServices(a)));
 ipcMain.handle('kube:endpoints', wrap((a) => kube.discoverEndpoints(a).then((endpoints) => ({ endpoints }))));
 ipcMain.handle('kube:fetchCerts', wrap((a) =>
   fetchEtcdCerts({ ...a, outDir: path.join(app.getPath('userData'), 'certs') })));

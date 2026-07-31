@@ -89,6 +89,22 @@ pods** — pods are matched by their labels (`component=etcd`, `app=etcd`,
 etcd image. Connections are tunnelled through the Kubernetes API server, so
 it works anywhere `kubectl port-forward` would.
 
+### etcd outside the control plane
+
+Discovery is not limited to the core Kubernetes etcd. Leave **Namespace**
+blank to scan the whole cluster, or set it to reach an etcd that belongs to
+an application — a Helm chart, an operator, a database backing store. The
+field is free text with a datalist, so **Load namespaces** is a convenience,
+not a requirement: type the name directly when your account may not list
+namespaces cluster-wide.
+
+If a deployment follows no etcd naming convention at all, tick **list every
+pod** to choose from every pod in the namespace; entries that don't look
+like etcd are labelled rather than hidden. In agent mode, **Fill from
+services** uses service DNS names (`name.namespace.svc:2379`) instead of pod
+IPs, which survive pod restarts — the better choice for an app-level etcd
+fronted by a Service.
+
 Notes:
 - The kubeconfig user needs permission to list pods and create
   `pods/portforward` in the pod's namespace.

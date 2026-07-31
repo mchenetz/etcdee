@@ -226,6 +226,9 @@ function readForm() {
       namespace: $('#cf-kube-pod').value.split('/')[0] || '',
       pod: $('#cf-kube-pod').value.split('/')[1] || '',
       remotePort: Number($('#cf-kube-port').value) || 2379,
+      // Where to look for etcd — independent of where the agent itself runs.
+      searchNamespace: $('#cf-kube-ns').value.trim(),
+      allPods: $('#cf-kube-allpods').checked,
       agentNamespace: $('#cf-agent-ns').value.trim() || 'etcdee-agent',
     },
   };
@@ -249,6 +252,8 @@ function fillForm(p) {
   const podValue = kube.namespace && kube.pod ? `${kube.namespace}/${kube.pod}` : '';
   setSelect($('#cf-kube-pod'), podValue, podValue || '— discover pods —');
   $('#cf-kube-port').value = kube.remotePort || 2379;
+  $('#cf-kube-ns').value = kube.searchNamespace || '';
+  $('#cf-kube-allpods').checked = Boolean(kube.allPods);
   const mode = kube.mode === 'agent' ? 'agent' : 'portforward';
   document.querySelector(`input[name="cf-kube-mode"][value="${mode}"]`).checked = true;
   $('#cf-agent-ns').value = kube.agentNamespace || 'etcdee-agent';
@@ -339,8 +344,7 @@ function kubeOptsFromForm() {
 
 $('#btn-kube-endpoints').addEventListener('click', guard(async () => {
   const res = await call(api.kube.endpoints, {
-    configPath: $('#cf-kubeconfig').value.trim() || null,
-    context: $('#cf-kube-context').value || null,
+    ...searchOpts(),
     port: Number($('#cf-kube-port').value) || 2379,
     tls: $('#cf-tls').checked,
   });
@@ -422,30 +426,66 @@ $('#btn-kube-contexts').addEventListener('click', guard(async () => {
   toast(`${res.contexts.length} context(s) in ${res.path}`);
 }));
 
+// Where to look for etcd. Namespace is free text so it still works when the
+// kubeconfig user may not list namespaces cluster-wide.
+function searchOpts() {
+  return {
+    configPath: $('#cf-kubeconfig').value.trim() || null,
+    context: $('#cf-kube-context').value || null,
+    namespace: $('#cf-kube-ns').value.trim() || null,
+    includeAll: $('#cf-kube-allpods').checked,
+  };
+}
+
+$('#btn-kube-namespaces').addEventListener('click', guard(async () => {
+  const res = await call(api.kube.namespaces, {
+    configPath: $('#cf-kubeconfig').value.trim() || null,
+    context: $('#cf-kube-context').value || null,
+  });
+  const list = $('#kube-namespaces');
+  list.textContent = '';
+  for (const ns of res.namespaces) list.append(el('option', { value: ns }));
+  toast(`${res.namespaces.length} namespace(s) — type or pick one`);
+}));
+
 $('#btn-kube-discover').addEventListener('click', guard(async () => {
   const btn = $('#btn-kube-discover');
   btn.disabled = true;
   try {
-    const res = await call(api.kube.discover, {
-      configPath: $('#cf-kubeconfig').value.trim() || null,
-      context: $('#cf-kube-context').value || null,
-    });
+    const res = await call(api.kube.discover, searchOpts());
     const sel = $('#cf-kube-pod');
     sel.textContent = '';
     if (res.pods.length === 0) {
-      setSelect(sel, '', 'no etcd-like pods found');
-      toast('No etcd-like pods found — check the context and RBAC', 'warn');
+      setSelect(sel, '', 'no pods found');
+      toast('No matching pods — try a namespace, or tick “list every pod”', 'warn');
       return;
     }
-    for (const p of res.pods) {
+    // etcd-like pods first so the likely choice is preselected.
+    const pods = res.pods.slice().sort((a, b) => (b.etcdLike ? 1 : 0) - (a.etcdLike ? 1 : 0));
+    for (const p of pods) {
       const ports = p.ports.length ? ` :${p.ports.join(',')}` : '';
+      const flags = [
+        p.etcdLike ? null : 'not etcd-like',
+        p.phase !== 'Running' ? p.phase : null,
+      ].filter(Boolean);
       sel.append(el('option', { value: `${p.namespace}/${p.name}` },
-        `${p.namespace}/${p.name}${ports}${p.phase !== 'Running' ? ` — ${p.phase}` : ''}`));
+        `${p.namespace}/${p.name}${ports}${flags.length ? ` — ${flags.join(', ')}` : ''}`));
     }
-    toast(`Found ${res.pods.length} etcd pod(s)`);
+    const matched = pods.filter((p) => p.etcdLike).length;
+    toast(matched === pods.length
+      ? `Found ${matched} etcd pod(s)`
+      : `Found ${matched} etcd-like of ${pods.length} pod(s)`);
   } finally {
     btn.disabled = false;
   }
+}));
+
+$('#btn-kube-services').addEventListener('click', guard(async () => {
+  const res = await call(api.kube.services, searchOpts());
+  if (res.services.length === 0) { toast('No etcd-like services found', 'warn'); return; }
+  const scheme = $('#cf-tls').checked ? 'https' : 'http';
+  $('#cf-endpoints').value = res.services.map((s) => `${scheme}://${s.dns}`).join(', ');
+  toast(`Filled ${res.services.length} service endpoint(s)`);
 }));
 
 function validateProfile(p) {
