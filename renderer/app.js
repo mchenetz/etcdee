@@ -383,7 +383,7 @@ $('#btn-fetch-certs').addEventListener('click', guard(async () => {
  * field. The agent refuses everything else, so this has to be right at
  * deploy time.
  */
-function agentAllowedPorts() {
+async function agentAllowedPorts() {
   const ports = new Set([2379, 2380]);
   const configured = Number($('#cf-kube-port').value);
   if (configured > 0) ports.add(configured);
@@ -391,6 +391,18 @@ function agentAllowedPorts() {
     const m = /:(\d+)\s*$/.exec(raw.trim());
     if (m) ports.add(Number(m[1]));
   }
+  // Members usually advertise the port the pods listen on rather than the
+  // one a service publishes (Portworx kvdb advertises 17016 behind 9019),
+  // so include service target ports or the Cluster view cannot probe them.
+  try {
+    const res = await call(api.kube.services, {
+      ...searchOpts(),
+      port: configured || null,
+    });
+    for (const s of res.services) {
+      if (Number(s.targetPort) > 0) ports.add(Number(s.targetPort));
+    }
+  } catch (_) { /* best effort — the explicit ports still apply */ }
   return [...ports].sort((a, b) => a - b).join(',');
 }
 
@@ -398,7 +410,8 @@ $('#btn-agent-deploy').addEventListener('click', guard(async () => {
   const btn = $('#btn-agent-deploy');
   const out = $('#agent-status');
   btn.disabled = true;
-  const allowedPorts = agentAllowedPorts();
+  out.textContent = 'checking ports…';
+  const allowedPorts = await agentAllowedPorts();
   out.textContent = 'deploying… (first run pulls node:alpine)';
   try {
     const res = await call(api.agent.ensure, { ...kubeOptsFromForm(), allowedPorts });

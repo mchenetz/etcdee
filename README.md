@@ -105,6 +105,18 @@ services** uses service DNS names (`name.namespace.svc:2379`) instead of pod
 IPs, which survive pod restarts — the better choice for an app-level etcd
 fronted by a Service.
 
+**An application's etcd rarely uses the control-plane certificates.** If
+*Fetch certs from cluster* loaded the OpenShift `etcd-client` secret, those
+are for the control-plane etcd and a separate etcd will refuse them — untick
+TLS if it serves plaintext, or point at its own certificates. When the agent
+reaches the address but etcd never answers, etcdee says so explicitly rather
+than blaming the address.
+
+Portworx's internal **kvdb** is recognised (its pods are placeholders labelled
+`kvdb`, with the real etcd on the host). Its service publishes 9019 but the
+members listen on 17016, so etcdee uses the service address — a pod IP on the
+published port answers nothing. Set **etcd port** to 9019 and leave TLS off.
+
 Notes:
 - The kubeconfig user needs permission to list pods and create
   `pods/portforward` in the pod's namespace.
