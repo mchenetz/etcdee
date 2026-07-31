@@ -422,6 +422,14 @@ table.data td {
 table.data tr:hover td { background: var(--bg2); }
 table.data .actions-cell { text-align: right; white-space: nowrap; }
 
+.lease-keys { max-height: 220px; overflow-y: auto; }
+.lease-key {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60ch;
+}
+
 /* ------------------------------------------------------------ connect view */
 
 .connect-wrap {

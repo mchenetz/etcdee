@@ -6,12 +6,18 @@ administrative operations you'd otherwise reach for `etcdctl` to do — snapshot
 compaction, defragmentation, cluster health, alarms, and role-based access
 control.
 
+![Browsing the keyspace with a JSON value pretty-printed](docs/images/keys-pretty-json.png)
+
 ## Run it
 
 ```bash
 npm install
 npm start
 ```
+
+Every screenshot below comes from a throwaway three-node
+[kind](https://kind.sigs.k8s.io) cluster seeded with invented data — see
+[Try it on a local cluster](#try-it-on-a-local-cluster) to reproduce it.
 
 ## Features
 
@@ -55,6 +61,19 @@ The most readable view opens automatically, so a Kubernetes object shows as
 `kind: Namespace` with named metadata and ISO timestamps instead of base64.
 PDF, ZIP, SQLite, bzip2 and xz values are labelled by type.
 
+Kubernetes stores its objects as protobuf, which etcd holds as opaque bytes.
+etcdee parses the `k8s\0` envelope and walks the payload, resolving
+`ObjectMeta` field names and `{seconds, nanos}` timestamps:
+
+![A Kubernetes protobuf value decoded into apiVersion, kind and named metadata](docs/images/value-kubernetes.png)
+
+Compressed values are decompressed and then pretty-printed if what comes out
+is JSON, and images are rendered inline:
+
+| | |
+| --- | --- |
+| ![A gzip value decompressed and pretty-printed](docs/images/value-gzip.png) | ![A PNG stored in a key, rendered inline](docs/images/value-image.png) |
+
 Rendered views are syntax highlighted — keys, strings, numbers, literals,
 timestamps and byte offsets each get their own colour, in both themes.
 Highlighting is tokenizer-driven and lossless (the painted text always
@@ -63,22 +82,37 @@ than it helps.
 
 Two buttons do change the value, and say so: **Apply to editor** turns the
 current rendering into a real edit, and **Decode/Encode base64** transform
-the buffer inline. Both mark the key dirty and need an explicit save.
+the buffer inline. Both mark the key dirty and need an explicit save — so
+inspecting a base64 value costs nothing, while rewriting it is deliberate.
 
-**Watch** — live event feed for any key or prefix, with previous values on
-updates and deletes.
+![A base64 value decoded in a read-only view](docs/images/value-base64.png)
 
-**Leases** — grant, inspect (TTL remaining, attached keys), and revoke.
+**Watch** — live event feed for any key or prefix, showing the previous value
+alongside the new one on updates, and what was removed on deletes.
+
+![Live watch feed showing puts and a delete with previous values](docs/images/watch.png)
+
+**Leases** — grant, inspect (TTL remaining, attached keys), and revoke. A
+lease holding thousands of keys (Kubernetes attaches every event to one) is
+summarised rather than allowed to bury the table.
+
+![Lease table with TTLs and attached keys](docs/images/leases.png)
 
 **Cluster** — member list with per-member status (version, DB size, raft term),
 leader badge, leadership transfer, alarm listing and disarm.
+
+![Cluster view showing three etcd members and the leader](docs/images/cluster.png)
 
 **Maintenance** — status dashboard (DB size, revision, raft term), streaming
 snapshot save to a `.db` file, compaction to any revision, defragmentation.
 Every destructive action gets a plain-language confirmation dialog.
 
+![Maintenance dashboard with snapshot, compact and defragment actions](docs/images/maintenance.png)
+
 **Access** — manage etcd users and roles: create/delete, grant/revoke roles,
 grant/revoke key and prefix permissions.
+
+![Users and roles with their key permissions](docs/images/access.png)
 
 ## Connecting through Kubernetes
 
@@ -88,6 +122,8 @@ pods** — pods are matched by their labels (`component=etcd`, `app=etcd`,
 `app.kubernetes.io/name`) or by having a container named `etcd` / running an
 etcd image. Connections are tunnelled through the Kubernetes API server, so
 it works anywhere `kubectl port-forward` would.
+
+![Connection screen configured for Kubernetes with the in-cluster agent](docs/images/connection.png)
 
 ### etcd outside the control plane
 
@@ -183,6 +219,41 @@ Extra benefit: in agent mode the Cluster view probes **every** member's
 status through the agent (version, DB size, leader) — in port-forward mode
 only the tunnelled member can be probed.
 
+## Try it on a local cluster
+
+A disposable [kind](https://kind.sigs.k8s.io) cluster is the quickest way to
+see everything above, and it is what produced these screenshots. Three
+control-plane nodes give a three-member etcd:
+
+```bash
+cat <<'YAML' | kind create cluster --name etcdee-demo --kubeconfig /tmp/etcdee-demo/kubeconfig --config -
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: control-plane
+  - role: control-plane
+YAML
+```
+
+kind keeps etcd's certificates on the node rather than in the API, so copy
+them out:
+
+```bash
+docker cp etcdee-demo-control-plane:/etc/kubernetes/pki/etcd/ca.crt /tmp/etcdee-demo/certs/ca.crt
+```
+
+Repeat for `apiserver-etcd-client.crt` and `apiserver-etcd-client.key`, then
+in etcdee: tick **Connect through Kubernetes**, point at
+`/tmp/etcdee-demo/kubeconfig`, choose the `kind-etcdee-demo` context, select
+**Via in-cluster agent**, press **Deploy / update agent**, tick **Use TLS
+client certificates** with the three files, and connect with Endpoints left
+blank. Delete it all afterwards with:
+
+```bash
+kind delete cluster --name etcdee-demo
+```
+
 ## Accessibility & UX
 
 - Full keyboard support: `⌘1–⌘7` switch views, `⌘K` filter, `⌘N` new key,
@@ -191,6 +262,8 @@ only the tunnelled member can be probed.
   feed), roving tabindex in the key tree, visible focus rings.
 - Light and dark themes (follows the system, toggleable), `prefers-reduced-motion`
   respected.
+
+![The same view in the light theme](docs/images/light-theme.png)
 
 ## Architecture
 

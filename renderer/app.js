@@ -954,12 +954,10 @@ async function renderView() {
     } else if (view === 'base64') {
       paintDecoded(pre, Codecs.toBytes($('#value-editor').value.trim(), 'base64'));
     } else if (view === 'image') {
-      const blob = new Blob([bytes], { type: state.editor.info.mime });
-      const url = URL.createObjectURL(blob);
-      const img = $('#value-image-img');
-      if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-      img.dataset.url = url;
-      img.src = url;
+      // A data: URI rather than a blob: one — the page's CSP allows data:
+      // for images, and there is no object URL to release afterwards.
+      $('#value-image-img').src =
+        `data:${state.editor.info.mime};base64,${Codecs.bytesToBase64(bytes)}`;
     }
   } catch (err) {
     pre.textContent = `could not decode: ${err.message}`;
@@ -1168,6 +1166,31 @@ $('#btn-watch-clear').addEventListener('click', () => {
 
 // -------------------------------------------------------------------- leases
 
+const LEASE_KEY_PREVIEW = 4;
+
+/**
+ * A single lease can hold thousands of keys — Kubernetes attaches every
+ * event to one — which would bury the rest of the table. Show a few and
+ * expand on request.
+ */
+function leaseKeysCell(keys) {
+  if (keys.length === 0) return el('span', { class: 'dim' }, '(none)');
+  const cell = el('div', { class: 'lease-keys' });
+  const render = (expanded) => {
+    cell.textContent = '';
+    const shown = expanded ? keys : keys.slice(0, LEASE_KEY_PREVIEW);
+    for (const k of shown) cell.append(el('div', { class: 'lease-key' }, k));
+    if (keys.length > LEASE_KEY_PREVIEW) {
+      cell.append(el('button', {
+        class: 'btn small ghost', style: 'margin-top:4px',
+        onclick: () => render(!expanded),
+      }, expanded ? 'show fewer' : `show all ${keys.length}`));
+    }
+  };
+  render(false);
+  return cell;
+}
+
 async function refreshLeases() {
   const data = await call(api.lease.list);
   const rows = $('#lease-rows');
@@ -1178,7 +1201,7 @@ async function refreshLeases() {
       el('td', {}, shortId(lease.id)),
       el('td', {}, lease.ttl === '-1' ? 'expired' : `${lease.ttl}s`),
       el('td', {}, `${lease.grantedTtl}s`),
-      el('td', {}, lease.keys.length ? lease.keys.join('\n') : el('span', { class: 'dim' }, '(none)')),
+      el('td', {}, leaseKeysCell(lease.keys)),
       el('td', { class: 'actions-cell' },
         el('button', {
           class: 'btn small danger',
