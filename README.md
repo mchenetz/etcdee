@@ -117,6 +117,16 @@ Portworx's internal **kvdb** is recognised (its pods are placeholders labelled
 members listen on 17016, so etcdee uses the service address — a pod IP on the
 published port answers nothing. Set **etcd port** to 9019 and leave TLS off.
 
+In agent mode the Cluster view probes members by their advertised client URL,
+then falls back to the IPs of the discovered etcd pods, identifying who
+answered by the member id in the reply. That matters when members advertise
+names only they can resolve — Portworx kvdb advertises `*.internal.kvdb`,
+which no ordinary pod can look up. Probes run concurrently, so an
+unresolvable address costs one timeout rather than one per member. Note the
+agent must be allowed to reach the port members actually listen on (17016 for
+kvdb, not the published 9019); redeploying the agent adds service target
+ports automatically.
+
 Notes:
 - The kubeconfig user needs permission to list pods and create
   `pods/portforward` in the pod's namespace.
