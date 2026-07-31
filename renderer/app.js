@@ -377,15 +377,33 @@ $('#btn-fetch-certs').addEventListener('click', guard(async () => {
   }
 }));
 
+/**
+ * Ports the agent must be allowed to reach: etcd's standard pair, whatever
+ * port the form is configured for, and anything named in the endpoints
+ * field. The agent refuses everything else, so this has to be right at
+ * deploy time.
+ */
+function agentAllowedPorts() {
+  const ports = new Set([2379, 2380]);
+  const configured = Number($('#cf-kube-port').value);
+  if (configured > 0) ports.add(configured);
+  for (const raw of $('#cf-endpoints').value.split(',')) {
+    const m = /:(\d+)\s*$/.exec(raw.trim());
+    if (m) ports.add(Number(m[1]));
+  }
+  return [...ports].sort((a, b) => a - b).join(',');
+}
+
 $('#btn-agent-deploy').addEventListener('click', guard(async () => {
   const btn = $('#btn-agent-deploy');
   const out = $('#agent-status');
   btn.disabled = true;
+  const allowedPorts = agentAllowedPorts();
   out.textContent = 'deploying… (first run pulls node:alpine)';
   try {
-    const res = await call(api.agent.ensure, kubeOptsFromForm());
-    out.textContent = `ready: ${res.pod}`;
-    toast(`Agent ready in ${res.namespace}`);
+    const res = await call(api.agent.ensure, { ...kubeOptsFromForm(), allowedPorts });
+    out.textContent = `ready: ${res.pod} · ports ${allowedPorts}`;
+    toast(`Agent ready in ${res.namespace} (ports ${allowedPorts})`);
   } catch (err) {
     out.textContent = 'deploy failed';
     throw err;
@@ -481,7 +499,10 @@ $('#btn-kube-discover').addEventListener('click', guard(async () => {
 }));
 
 $('#btn-kube-services').addEventListener('click', guard(async () => {
-  const res = await call(api.kube.services, searchOpts());
+  const res = await call(api.kube.services, {
+    ...searchOpts(),
+    port: Number($('#cf-kube-port').value) || null,
+  });
   if (res.services.length === 0) { toast('No etcd-like services found', 'warn'); return; }
   const scheme = $('#cf-tls').checked ? 'https' : 'http';
   $('#cf-endpoints').value = res.services.map((s) => `${scheme}://${s.dns}`).join(', ');

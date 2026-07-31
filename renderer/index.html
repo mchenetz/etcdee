@@ -109,6 +109,9 @@
                     <datalist id="kube-namespaces"></datalist>
                   </label>
                   <button type="button" id="btn-kube-namespaces" class="btn small" style="align-self:end">Load namespaces</button>
+                  <label class="field" style="width:120px"><span>etcd port</span>
+                    <input type="number" id="cf-kube-port" class="mono" value="2379" min="1" max="65535" title="etcd's client port inside the cluster — change it if etcd does not listen on 2379" />
+                  </label>
                   <label class="check" style="align-self:end;padding-bottom:7px" title="Show every pod in the namespace, not only ones that look like etcd">
                     <input type="checkbox" id="cf-kube-allpods" /> list every pod
                   </label>
@@ -122,9 +125,6 @@
                     <select id="cf-kube-pod"><option value="">— discover pods —</option></select>
                   </label>
                   <button type="button" id="btn-kube-discover" class="btn small" style="align-self:end">Find etcd pods</button>
-                  <label class="field" style="width:110px"><span>Pod port</span>
-                    <input type="number" id="cf-kube-port" class="mono" value="2379" min="1" />
-                  </label>
                 </div>
                 <div class="tls-files hidden" id="cf-kube-agent-row">
                   <div class="row">
@@ -145,7 +145,9 @@
                     A tiny broker pod (stock <span class="mono">node:alpine</span> image, source injected from a ConfigMap) is deployed
                     with your kubeconfig credentials. The app tunnels to it, and it opens connections to any etcd address the cluster
                     can reach — so put the <em>in-cluster</em> endpoints (service DNS, pod or node IPs) in the Endpoints field above.
-                    Access requires a bearer token stored in a cluster Secret, and only etcd ports (2379, 2380) are reachable.
+                    Access requires a bearer token stored in a cluster Secret, and the agent only reaches the ports
+                    allowed when it was deployed — 2379/2380 plus the port and endpoints set above. Change the port
+                    afterwards and you must redeploy the agent.
                   </p>
                 </div>
                 <p class="hint" style="margin:0">

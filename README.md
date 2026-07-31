@@ -118,9 +118,21 @@ Notes:
   namespace (e.g. `oc extract secret/etcd-client -n openshift-etcd`).
 - App-level etcd deployments without client-cert auth connect with no TLS
   config at all.
-- The default pod port 2379 is etcd's client port; the pod dropdown also
-  shows any ports the pod declares (control-plane pods often only declare
-  their metrics port — keep 2379).
+### When etcd is not on port 2379
+
+Set **etcd port** on the connection form; it applies to both Kubernetes
+modes and drives pod tunnelling, endpoint discovery and service matching.
+The pod dropdown lists the ports each pod declares, but those are only a
+hint — control-plane pods often declare just their metrics port (2381)
+while still serving clients on 2379, so etcdee never infers the port from
+them.
+
+The in-cluster agent enforces an allowlist, refusing any port it was not
+deployed with. **Deploy / update agent** builds that list automatically
+from 2379/2380 plus the configured port and any ports in the Endpoints
+field, and reports it (`ports 2379,2380,12379`). If you change the port
+afterwards, redeploy the agent — connecting first gives an immediate error
+naming the port and the fix rather than a timeout.
 
 ### In-cluster agent mode
 
