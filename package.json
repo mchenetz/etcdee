@@ -11,6 +11,14 @@
   },
   "author": "Mike Chenetz",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mchenetz/etcdee.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mchenetz/etcdee/issues"
+  },
+  "homepage": "https://github.com/mchenetz/etcdee#readme",
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
     "etcd3": "^1.1.2"

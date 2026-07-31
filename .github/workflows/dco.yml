@@ -1,0 +1,37 @@
+name: DCO
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify every commit is signed off
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          missing=0
+          for sha in $(git rev-list "$base..$head"); do
+            if ! git log -1 --format=%B "$sha" | grep -qiE '^Signed-off-by: .+ <.+@.+>$'; then
+              echo "::error::Commit $sha is missing a Signed-off-by trailer."
+              git log -1 --format='  %h %s (%an <%ae>)' "$sha"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo
+            echo "Every commit must be signed off per the Developer Certificate of Origin."
+            echo "Amend the commit(s) above with: git commit --amend -s"
+            echo "See CONTRIBUTING.md#developer-certificate-of-origin-dco for details."
+            exit 1
+          fi
+          echo "All commits are signed off."

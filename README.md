@@ -1,5 +1,8 @@
 # etcdee
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
 A visual desktop console for managing etcd v3 clusters, built with Electron.
 Browse and edit the keyspace, stream live changes, manage leases, and run the
 administrative operations you'd otherwise reach for `etcdctl` to do — snapshots,
@@ -299,3 +302,18 @@ cluster status, alarms, compact, defrag, snapshot, and the auth lifecycle.
 For the Kubernetes path, `npm run smoke:kube` discovers an etcd pod via a
 kubeconfig and round-trips data through the port-forward tunnel (see the
 header of `test/kube-smoke.js` for configuration).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for how
+to file issues and submit pull requests, including the
+[DCO sign-off](CONTRIBUTING.md#developer-certificate-of-origin-dco) required
+on every commit. This project follows the
+[Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md) and documents its
+[governance](GOVERNANCE.md) and [security policy](SECURITY.md) in the style
+used by CNCF projects — see those files for how decisions are made and how
+to report a vulnerability. etcdee is not currently a CNCF project.
+
+## License
+
+etcdee is licensed under the [MIT License](LICENSE).
